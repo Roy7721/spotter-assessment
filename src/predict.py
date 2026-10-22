@@ -53,7 +53,7 @@ def main():
     model_a = gbm().fit(fit_a[FEATURES], np.log(fit_a.posted_rate))
     pred_a = np.exp(model_a.predict(add_features(valid)[FEATURES]))
 
-    path_a = Root / "validation-predictions.csv"
+    path_a = Root / "validation_predictions.csv"
     pd.DataFrame({"load_id": valid.load_id,
                   "predicted_rate": pred_a.round(2)}).to_csv(path_a, index=False)
     print(f"wrote {path_a.name}  {len(pred_a)} rows  "

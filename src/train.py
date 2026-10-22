@@ -12,7 +12,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.linear_model import LinearRegression
 from data import load_all, TRAIN_END,HOLDOUT_START
 from sklearn.ensemble import HistGradientBoostingRegressor
-
+from sklearn.model_selection import train_test_split
 
 
 def metrics(y_true, y_pred):
@@ -73,6 +73,15 @@ def error_profile(y_true, y_pred):
     for n in [10, 50, 100, 500]:
         share = 100 * sq[order[:n]].sum() / total
         print(f"{n:<16}{100 * n / len(y_true):11.2f}%{share:21.1f}%")
+
+def split_comparison(train_f):
+    """What would a shuffled split have claimed? Same model, same data,
+    only the split changes."""
+    a, b = train_test_split(train_f, test_size=0.2, random_state=0)  # shuffled
+    m = gbm().fit(a[FEATURES], np.log(a.posted_rate))
+    shuffled = metrics(b.posted_rate.values, np.exp(m.predict(b[FEATURES])))
+    print(f"\nshuffled split  MAE {shuffled['MAE']:.2f}   <- dishonest")
+    print(f"time split      MAE {118.66:.2f}   <- honest")
 
 
 def worst_rows(holdout, y_pred, n=15):
