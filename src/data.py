@@ -19,6 +19,9 @@ Files = {
     "dec" :  Data / "december-chart-inputs.csv"
 }
 
+TRAIN_END = "2025-08-31"
+HOLDOUT_START = "2025-09-01"
+
 def clean(df):
 
     out = df.copy()
