@@ -75,6 +75,39 @@ def error_profile(y_true, y_pred):
         print(f"{n:<16}{100 * n / len(y_true):11.2f}%{share:21.1f}%")
 
 
+def worst_rows(holdout, y_pred, n=15):
+    """Are the worst rows weird LOADS, or normal loads at weird PRICES?"""
+    out = holdout.copy()
+    out["predicted"] = y_pred
+    out["ratio"] = out.posted_rate / out.predicted
+    cols = ["pickup", "delivery", "distance", "weight", "equipment",
+            "date", "market_index", "posted_rate", "predicted", "ratio"]
+    worst = out.assign(e=(out.posted_rate - out.predicted).abs()) \
+               .sort_values("e", ascending=False)
+    print(worst[cols].head(n).to_string())
+
+
+def trim(fit_f, features=FEATURES, n_mad=4.0):
+    """Drop training rows the model cannot explain.
+
+    Fit once, read the residuals, cut the extreme tail. MAD rather than SD
+    because the contamination would inflate the SD and widen the very band
+    meant to exclude it.
+    """
+    
+    m = gbm().fit(fit_f[features], np.log(fit_f.posted_rate))
+    resid = np.log(fit_f.posted_rate) - m.predict(fit_f[features])
+    sigma = 1.4826 * (resid - resid.median()).abs().median()
+    keep = resid.abs() <= n_mad * sigma
+    print(f"\ntrim at {n_mad} MAD: dropping {(~keep).sum()} of {len(fit_f)} "
+          f"({100 * (~keep).mean():.2f}%)")
+    return fit_f[keep]
+
+
+
+
+
+
 if __name__ == "__main__":
     train, valid, dec = load_all()
     fit, holdout = time_split(train)
@@ -94,3 +127,22 @@ if __name__ == "__main__":
     print("gbm, log target :", metrics(y_hold, np.exp(log)))
 
     error_profile(y_hold, np.exp(log))
+    worst_rows(hold_f, np.exp(log))
+
+    # finding out the contaminated rows
+    out = hold_f.copy()
+    out["predicted"] = np.exp(log)
+    out["ratio"] = out.posted_rate / out.predicted
+    print("\n--- most inflated ---")
+    print(out.nlargest(5, "ratio")[["distance", "posted_rate", "predicted", "ratio"]].to_string())
+    print("\n--- most deflated ---")
+    print(out.nsmallest(5, "ratio")[["distance", "posted_rate", "predicted", "ratio"]].to_string())
+
+    bad = (out.ratio > 1.5) | (out.ratio < 0.7)
+    print(f"\ncontaminated: {bad.sum()} of {len(out)}  ({100*bad.mean():.2f}%)")
+
+    # trimming
+    fit_t = trim(fit_f)
+    trimmed = gbm().fit(fit_t[FEATURES], np.log(fit_t.posted_rate)) \
+                   .predict(hold_f[FEATURES])
+    print("gbm, log target, trimmed :", metrics(y_hold, np.exp(trimmed)))
